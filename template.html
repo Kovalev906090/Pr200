@@ -1,0 +1,563 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Эмулятор ПР200 (Котельная)</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f0f0f0;
+            margin: 0;
+            padding: 20px;
+        }
+        .panel {
+            width: 800px;
+            height: 480px;
+            background-color: #333;
+            border-radius: 10px;
+            margin: 0 auto;
+            padding: 15px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+            position: relative;
+            color: white;
+        }
+        .screen {
+            width: 100%;
+            height: 380px;
+            background-color: #222;
+            border-radius: 5px;
+            padding: 10px;
+            margin-bottom: 10px;
+            overflow: auto;
+        }
+        .nav-buttons {
+            display: flex;
+            justify-content: space-around;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            background-color: #555;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #777;
+        }
+        button:disabled {
+            background-color: #333;
+            color: #777;
+            cursor: not-allowed;
+        }
+        .main-screen, .alarms-screen, .history-screen, .settings-screen {
+            display: none;
+        }
+        .active {
+            display: block;
+        }
+        .param-value {
+            font-size: 24px;
+            margin-left: 10px;
+        }
+        .normal {
+            color: #4CAF50;
+        }
+        .warning {
+            color: #FFC107;
+        }
+        .alarm {
+            color: #FF5252;
+        }
+        .alarm-item {
+            padding: 5px;
+            margin: 5px 0;
+            border-left: 3px solid #FF5252;
+            background-color: rgba(255, 82, 82, 0.1);
+        }
+        .event-item {
+            padding: 3px 0;
+            border-bottom: 1px solid #444;
+        }
+        .slider {
+            width: 100%;
+            margin: 15px 0;
+        }
+        .param-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 10px 0;
+        }
+        .settings-row {
+            margin: 15px 0;
+        }
+        input[type="number"] {
+            width: 80px;
+            padding: 5px;
+            background-color: #444;
+            color: white;
+            border: 1px solid #666;
+            border-radius: 3px;
+        }
+        .status-indicator {
+            display: inline-block;
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            margin-right: 10px;
+        }
+        .status-on {
+            background-color: #4CAF50;
+            box-shadow: 0 0 5px #4CAF50;
+        }
+        .status-off {
+            background-color: #F44336;
+        }
+        .status-auto {
+            background-color: #2196F3;
+            box-shadow: 0 0 5px #2196F3;
+        }
+    </style>
+</head>
+<body>
+    <div class="panel">
+        <div class="screen">
+            <!-- Главный экран -->
+            <div id="main" class="main-screen active">
+                <h2>Главный экран</h2>
+                
+                <div class="param-row">
+                    <span>Режим работы:</span>
+                    <span>
+                        <span class="status-indicator" id="mode-indicator"></span>
+                        <span id="mode-value" class="param-value">Автоматический</span>
+                    </span>
+                </div>
+                
+                <div class="param-row">
+                    <span>Температура котла:</span>
+                    <span id="temp-value" class="param-value normal">75.5 °C</span>
+                </div>
+                
+                <div class="param-row">
+                    <span>Давление:</span>
+                    <span id="pressure-value" class="param-value normal">2.3 бар</span>
+                </div>
+                
+                <div class="param-row">
+                    <span>Уставка температуры:</span>
+                    <span id="setpoint-value" class="param-value">75.0 °C</span>
+                </div>
+                
+                <div class="slider">
+                    <input type="range" id="temp-slider" min="40" max="90" value="75" step="0.5">
+                </div>
+                
+                <div class="param-row">
+                    <span>Насос 1:</span>
+                    <span>
+                        <span class="status-indicator" id="pump1-indicator"></span>
+                        <span id="pump1-value" class="param-value">Вкл</span>
+                    </span>
+                </div>
+                
+                <div class="param-row">
+                    <span>Насос 2:</span>
+                    <span>
+                        <span class="status-indicator" id="pump2-indicator"></span>
+                        <span id="pump2-value" class="param-value">Выкл</span>
+                    </span>
+                </div>
+                
+                <div style="margin-top: 20px; display: flex; gap: 10px;">
+                    <button id="auto-btn" onclick="setMode(0)">Автоматический режим</button>
+                    <button id="manual-btn" onclick="setMode(1)">Ручной режим</button>
+                    <button id="pump1-btn" onclick="togglePump(1)">Переключить насос 1</button>
+                    <button id="pump2-btn" onclick="togglePump(2)">Переключить насос 2</button>
+                </div>
+            </div>
+            
+            <!-- Экран аварий -->
+            <div id="alarms" class="alarms-screen">
+                <h2>Аварии</h2>
+                <div id="alarms-list">
+                    <div class="alarm-item">Нет активных аварий</div>
+                </div>
+                <div style="margin-top: 20px;">
+                    <button onclick="resetAlarms()" id="reset-alarms-btn">Сброс аварий</button>
+                    <button onclick="testAlarm()" style="margin-left: 10px;">Тест аварии</button>
+                </div>
+            </div>
+            
+            <!-- Экран истории -->
+            <div id="history" class="history-screen">
+                <h2>История событий</h2>
+                <div id="events-list">
+                    <div class="event-item">Система запущена</div>
+                </div>
+                <div style="margin-top: 20px;">
+                    <button onclick="clearHistory()">Очистить историю</button>
+                </div>
+            </div>
+            
+            <!-- Экран настроек -->
+            <div id="settings" class="settings-screen">
+                <h2>Настройки</h2>
+                
+                <div class="settings-row">
+                    <label>Макс. температура (авария):</label>
+                    <input type="number" id="max-temp" value="90" min="70" max="120" step="1"> °C
+                </div>
+                
+                <div class="settings-row">
+                    <label>Мин. давление (авария):</label>
+                    <input type="number" id="min-pressure" value="1.0" min="0.5" max="3.0" step="0.1"> бар
+                </div>
+                
+                <div class="settings-row">
+                    <label>Макс. давление (авария):</label>
+                    <input type="number" id="max-pressure" value="2.8" min="1.5" max="5.0" step="0.1"> бар
+                </div>
+                
+                <div style="margin-top: 30px;">
+                    <button onclick="saveSettings()">Сохранить настройки</button>
+                    <button onclick="showScreen('main')" style="margin-left: 10px;">Отмена</button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="nav-buttons">
+            <button onclick="showScreen('main')">Главная</button>
+            <button onclick="showScreen('alarms')">Аварии</button>
+            <button onclick="showScreen('history')">История</button>
+            <button onclick="showScreen('settings')">Настройки</button>
+        </div>
+    </div>
+
+    <script>
+        // Состояние системы
+        const systemState = {
+            temp: 75.5,
+            pressure: 2.3,
+            setpoint: 75.0,
+            mode: 0, // 0 - авто, 1 - ручной
+            pumps: [true, false], // Насос 1 и 2
+            alarms: [],
+            events: ["Система запущена"],
+            settings: {
+                maxTemp: 90,
+                minPressure: 1.0,
+                maxPressure: 2.8
+            },
+            alarmStates: {
+                overheat: false,
+                lowPressure: false,
+                highPressure: false,
+                pump1Fail: false,
+                pump2Fail: false
+            }
+        };
+
+        // DOM элементы
+        const elements = {
+            tempValue: document.getElementById('temp-value'),
+            pressureValue: document.getElementById('pressure-value'),
+            setpointValue: document.getElementById('setpoint-value'),
+            modeValue: document.getElementById('mode-value'),
+            modeIndicator: document.getElementById('mode-indicator'),
+            pump1Value: document.getElementById('pump1-value'),
+            pump2Value: document.getElementById('pump2-value'),
+            pump1Indicator: document.getElementById('pump1-indicator'),
+            pump2Indicator: document.getElementById('pump2-indicator'),
+            alarmsList: document.getElementById('alarms-list'),
+            eventsList: document.getElementById('events-list'),
+            tempSlider: document.getElementById('temp-slider'),
+            resetAlarmsBtn: document.getElementById('reset-alarms-btn'),
+            autoBtn: document.getElementById('auto-btn'),
+            manualBtn: document.getElementById('manual-btn'),
+            maxTempInput: document.getElementById('max-temp'),
+            minPressureInput: document.getElementById('min-pressure'),
+            maxPressureInput: document.getElementById('max-pressure')
+        };
+
+        // Инициализация
+        function init() {
+            // Загрузка настроек
+            loadSettings();
+            
+            // Настройка слайдера
+            elements.tempSlider.value = systemState.setpoint;
+            elements.tempSlider.addEventListener('input', function() {
+                systemState.setpoint = parseFloat(this.value);
+                updateSetpoint();
+                addEvent(`Изменена уставка температуры: ${systemState.setpoint} °C`);
+            });
+            
+            // Обновление интерфейса
+            updateUI();
+            
+            // Запуск симуляции
+            setInterval(simulateSystem, 1000);
+        }
+
+        // Симуляция работы системы
+        function simulateSystem() {
+            // Изменение температуры
+            if (systemState.mode === 0) { // Автоматический режим
+                const diff = systemState.setpoint - systemState.temp;
+                systemState.temp += diff * 0.05 + (Math.random() - 0.5) * 0.2;
+                
+                // Управление насосами в авто режиме
+                if (systemState.temp < systemState.setpoint - 2) {
+                    systemState.pumps[0] = true;
+                } else if (systemState.temp > systemState.setpoint + 2) {
+                    systemState.pumps[0] = false;
+                }
+            } else { // Ручной режим
+                systemState.temp += (Math.random() - 0.5) * 0.3;
+                if (systemState.pumps[0]) {
+                    systemState.temp += 0.1;
+                }
+            }
+            
+            // Изменение давления
+            systemState.pressure += (Math.random() - 0.5) * 0.05;
+            if (systemState.pumps[0]) {
+                systemState.pressure += 0.02;
+            }
+            if (systemState.pumps[1]) {
+                systemState.pressure += 0.03;
+            }
+            
+            // Проверка аварий
+            checkAlarms();
+            
+            // Обновление интерфейса
+            updateUI();
+        }
+
+        // Проверка аварийных состояний
+        function checkAlarms() {
+            // Перегрев
+            if (systemState.temp > systemState.settings.maxTemp && !systemState.alarmStates.overheat) {
+                systemState.alarmStates.overheat = true;
+                addAlarm(`Перегрев котла! Температура: ${systemState.temp.toFixed(1)} °C`);
+                addEvent(`Авария: Перегрев котла (${systemState.temp.toFixed(1)} °C)`);
+            } else if (systemState.temp <= systemState.settings.maxTemp - 5 && systemState.alarmStates.overheat) {
+                systemState.alarmStates.overheat = false;
+                addEvent(`Авария перегрева устранена (${systemState.temp.toFixed(1)} °C)`);
+            }
+            
+            // Низкое давление
+            if (systemState.pressure < systemState.settings.minPressure && !systemState.alarmStates.lowPressure) {
+                systemState.alarmStates.lowPressure = true;
+                addAlarm(`Низкое давление! ${systemState.pressure.toFixed(1)} бар`);
+                addEvent(`Авария: Низкое давление (${systemState.pressure.toFixed(1)} бар)`);
+            } else if (systemState.pressure >= systemState.settings.minPressure + 0.2 && systemState.alarmStates.lowPressure) {
+                systemState.alarmStates.lowPressure = false;
+                addEvent(`Авария низкого давления устранена (${systemState.pressure.toFixed(1)} бар)`);
+            }
+            
+            // Высокое давление
+            if (systemState.pressure > systemState.settings.maxPressure && !systemState.alarmStates.highPressure) {
+                systemState.alarmStates.highPressure = true;
+                addAlarm(`Высокое давление! ${systemState.pressure.toFixed(1)} бар`);
+                addEvent(`Авария: Высокое давление (${systemState.pressure.toFixed(1)} бар)`);
+            } else if (systemState.pressure <= systemState.settings.maxPressure - 0.2 && systemState.alarmStates.highPressure) {
+                systemState.alarmStates.highPressure = false;
+                addEvent(`Авария высокого давления устранена (${systemState.pressure.toFixed(1)} бар)`);
+            }
+            
+            // Обновление списка аварий
+            updateAlarmsList();
+        }
+
+        // Обновление интерфейса
+        function updateUI() {
+            // Температура
+            elements.tempValue.textContent = `${systemState.temp.toFixed(1)} °C`;
+            
+            // Цвет температуры в зависимости от состояния
+            if (systemState.temp > systemState.settings.maxTemp - 5) {
+                elements.tempValue.className = "param-value alarm";
+            } else if (systemState.temp > systemState.settings.maxTemp - 10) {
+                elements.tempValue.className = "param-value warning";
+            } else {
+                elements.tempValue.className = "param-value normal";
+            }
+            
+            // Давление
+            elements.pressureValue.textContent = `${systemState.pressure.toFixed(1)} бар`;
+            
+            // Цвет давления в зависимости от состояния
+            if (systemState.pressure > systemState.settings.maxPressure || 
+                systemState.pressure < systemState.settings.minPressure) {
+                elements.pressureValue.className = "param-value alarm";
+            } else if (systemState.pressure > systemState.settings.maxPressure - 0.2 || 
+                       systemState.pressure < systemState.settings.minPressure + 0.2) {
+                elements.pressureValue.className = "param-value warning";
+            } else {
+                elements.pressureValue.className = "param-value normal";
+            }
+            
+            // Уставка
+            elements.setpointValue.textContent = `${systemState.setpoint.toFixed(1)} °C`;
+            
+            // Режим работы
+            elements.modeValue.textContent = systemState.mode === 0 ? "Автоматический" : "Ручной";
+            elements.modeIndicator.className = systemState.mode === 0 ? "status-indicator status-auto" : "status-indicator status-off";
+            
+            // Насосы
+            elements.pump1Value.textContent = systemState.pumps[0] ? "Вкл" : "Выкл";
+            elements.pump1Indicator.className = systemState.pumps[0] ? "status-indicator status-on" : "status-indicator status-off";
+            
+            elements.pump2Value.textContent = systemState.pumps[1] ? "Вкл" : "Выкл";
+            elements.pump2Indicator.className = systemState.pumps[1] ? "status-indicator status-on" : "status-indicator status-off";
+            
+            // Кнопки режимов
+            elements.autoBtn.disabled = systemState.mode === 0;
+            elements.manualBtn.disabled = systemState.mode === 1;
+            
+            // Кнопка сброса аварий
+            elements.resetAlarmsBtn.disabled = systemState.alarms.length === 0;
+        }
+
+        // Обновление уставки
+        function updateSetpoint() {
+            elements.setpointValue.textContent = `${systemState.setpoint.toFixed(1)} °C`;
+            elements.tempSlider.value = systemState.setpoint;
+        }
+
+        // Переключение экранов
+        function showScreen(screenId) {
+            document.querySelectorAll('.screen > div').forEach(screen => {
+                screen.classList.remove('active');
+            });
+            document.getElementById(screenId).classList.add('active');
+            
+            if (screenId === 'alarms') {
+                updateAlarmsList();
+            }
+        }
+
+        // Установка режима работы
+        function setMode(mode) {
+            systemState.mode = mode;
+            addEvent(`Режим изменен: ${mode === 0 ? 'Автоматический' : 'Ручной'}`);
+            updateUI();
+        }
+
+        // Переключение насосов
+        function togglePump(pumpNum) {
+            const pumpIndex = pumpNum - 1;
+            systemState.pumps[pumpIndex] = !systemState.pumps[pumpIndex];
+            addEvent(`Насос ${pumpNum} ${systemState.pumps[pumpIndex] ? 'включен' : 'выключен'}`);
+            updateUI();
+        }
+
+        // Добавление аварии
+        function addAlarm(message) {
+            systemState.alarms.unshift({
+                time: new Date(),
+                message: message
+            });
+            updateAlarmsList();
+        }
+
+        // Обновление списка аварий
+        function updateAlarmsList() {
+            const alarmsList = document.getElementById('alarms-list');
+            alarmsList.innerHTML = '';
+            
+            if (systemState.alarms.length === 0) {
+                alarmsList.innerHTML = '<div class="alarm-item">Нет активных аварий</div>';
+                return;
+            }
+            
+            systemState.alarms.forEach(alarm => {
+                const timeStr = alarm.time.toLocaleTimeString();
+                const alarmElement = document.createElement('div');
+                alarmElement.className = 'alarm-item';
+                alarmElement.textContent = `${timeStr} - ${alarm.message}`;
+                alarmsList.appendChild(alarmElement);
+            });
+        }
+
+        // Сброс аварий
+        function resetAlarms() {
+            systemState.alarms = [];
+            updateAlarmsList();
+            addEvent("Все аварии сброшены");
+        }
+
+        // Добавление события в историю
+        function addEvent(message) {
+            const now = new Date();
+            const timeStr = now.toLocaleTimeString();
+            systemState.events.unshift(`${timeStr} - ${message}`);
+            
+            // Ограничиваем историю 50 событиями
+            if (systemState.events.length > 50) {
+                systemState.events.pop();
+            }
+            
+            updateEventsList();
+        }
+
+        // Обновление списка событий
+        function updateEventsList() {
+            const eventsList = document.getElementById('events-list');
+            eventsList.innerHTML = '';
+            
+            systemState.events.forEach(event => {
+                const eventElement = document.createElement('div');
+                eventElement.className = 'event-item';
+                eventElement.textContent = event;
+                eventsList.appendChild(eventElement);
+            });
+        }
+
+        // Очистка истории
+        function clearHistory() {
+            systemState.events = ["История очищена"];
+            updateEventsList();
+        }
+
+        // Тестовая авария
+        function testAlarm() {
+            addAlarm("Тестовая авария (имитация)");
+            addEvent("Создана тестовая авария");
+        }
+
+        // Загрузка настроек
+        function loadSettings() {
+            const savedSettings = localStorage.getItem('pr200-settings');
+            if (savedSettings) {
+                systemState.settings = JSON.parse(savedSettings);
+            }
+            
+            elements.maxTempInput.value = systemState.settings.maxTemp;
+            elements.minPressureInput.value = systemState.settings.minPressure;
+            elements.maxPressureInput.value = systemState.settings.maxPressure;
+        }
+
+        // Сохранение настроек
+        function saveSettings() {
+            systemState.settings = {
+                maxTemp: parseFloat(elements.maxTempInput.value),
+                minPressure: parseFloat(elements.minPressureInput.value),
+                maxPressure: parseFloat(elements.maxPressureInput.value)
+            };
+            
+            localStorage.setItem('pr200-settings', JSON.stringify(systemState.settings));
+            addEvent("Настройки сохранены");
+            showScreen('main');
+        }
+
+        // Запуск при загрузке страницы
+        window.onload = init;
+    </script>
+</body>
+</html>
